@@ -4,11 +4,9 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - '**/app/**'
+      - '*.zip'
       - 'app/**'
-      - '**/build.gradle.kts'
-      - '**/settings.gradle.kts'
-      - '**/gradle.properties'
+      - '**/app/**'
       - '.github/workflows/build.yml'
 
 jobs:
@@ -19,12 +17,25 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Locate project folder
+      - name: Find or unzip project
         run: |
-          f=$(find . -maxdepth 3 -name settings.gradle.kts -not -path './.git/*' | head -n 1)
+          find_settings() { find . -maxdepth 4 -name settings.gradle.kts -not -path './.git/*' | head -n 1; }
+          f=$(find_settings)
           if [ -z "$f" ]; then
-            echo "::error::settings.gradle.kts not found anywhere in the repository. Upload the extracted ZIP contents."
-            ls -la
+            z=$(ls ./*.zip 2>/dev/null | head -n 1)
+            if [ -z "$z" ]; then
+              echo "::error::No project files and no .zip found in the repo root"
+              ls -la
+              exit 1
+            fi
+            echo "Unzipping $z"
+            mkdir -p unpacked
+            unzip -q "$z" -d unpacked
+            f=$(find_settings)
+          fi
+          if [ -z "$f" ]; then
+            echo "::error::settings.gradle.kts not found, even after unzipping"
+            find . -maxdepth 4 -not -path './.git/*' | head -n 50
             exit 1
           fi
           dir=$(dirname "$f")
